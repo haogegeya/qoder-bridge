@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>qoder-bridge</title>
+<style>
+  :root {
+    --bg: #0f1117; --card: #171a23; --border: #262b38;
+    --text: #e6e9f0; --muted: #8b93a7; --accent: #4ea1ff;
+    --ok: #3ecf8e; --warn: #f5a623; --bad: #f2555a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 24px; max-width: 1100px; margin-inline: auto;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 28px 0 12px; color: var(--muted); font-weight: 600; letter-spacing: .04em; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px;
+  }
+  .card .k { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+  .card .v { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .card .s { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  tr.active-row { background: rgba(78, 161, 255, .10); }
+  tr.clickable { cursor: pointer; }
+  tr.clickable:hover { background: rgba(255, 255, 255, .05); }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .tag.free { background: rgba(62, 207, 142, .16); color: var(--ok); }
+  .tag.paid { background: rgba(245, 166, 35, .15); color: var(--warn); }
+  .tag.now  { background: rgba(78, 161, 255, .18); color: var(--accent); }
+  .tag.off  { background: rgba(139, 147, 167, .15); color: var(--muted); }
+  .accbtn {
+    background: transparent; color: var(--muted); border: 1px solid var(--border);
+    padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .accbtn.active { background: rgba(78, 161, 255, .18); color: var(--accent); border-color: var(--accent); }
+  .accbtn:disabled { opacity: .55; cursor: default; }
+  .bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin: 8px 0; }
+  .bar > div { height: 100%; background: var(--accent); transition: width .4s; }
+  .btn {
+    background: var(--accent); color: #06121f; border: 0; padding: 6px 12px;
+    border-radius: 8px; font-size: 12px; font-weight: 650; cursor: pointer;
+  }
+  .btn:disabled { opacity: .35; cursor: default; }
+  .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .btn.danger { background: transparent; color: var(--bad); border: 1px solid rgba(242,85,90,.4); }
+  .btn.sm { padding: 3px 9px; font-size: 11px; }
+  input, select {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 10px; font-size: 13px; font-family: inherit;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  .form-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .form-row input { flex: 1; min-width: 140px; }
+  #acc-pat { font-family: ui-monospace, monospace; }
+  .muted { color: var(--muted); }
+  .mono { font-family: ui-monospace, monospace; font-size: 12px; }
+  #toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--accent); color: #06121f; padding: 10px 18px;
+    border-radius: 10px; font-weight: 650; opacity: 0; transition: opacity .25s;
+    pointer-events: none; z-index: 99; max-width: 90vw;
+  }
+  .err { color: var(--bad); }
+</style>
+</head>
+<body>
+  <h1>qoder-bridge <span class="mono muted">127.0.0.1:8100</span></h1>
+  <div class="sub">
+    <span id="accounts-switch"></span> ·
+    严格单模型对外：<span class="mono">qoder-model</span> · 实际路由：<b id="active-key" class="mono">…</b> · <span id="updated" class="muted">加载中…</span>
+  </div>
+
+  <div class="grid" id="stats"></div>
+
+  <h2>账号池 — 录入 / 切换 / 管理</h2>
+  <div class="card">
+    <div class="form-row">
+      <input id="acc-alias" placeholder="别名（必填，如 主号 / 备用1）" maxlength="40">
+      <input id="acc-pat" type="password" placeholder="个人访问令牌 pt-…（必填）" autocomplete="off">
+      <select id="acc-edition">
+        <option value="cn">国内 cn</option>
+        <option value="global">国际 global</option>
+      </select>
+      <input id="acc-note" placeholder="备注（可选）" maxlength="120">
+      <button class="btn" id="acc-add">添加账号</button>
+    </div>
+    <div class="s muted" style="margin:-4px 0 12px">令牌仅保存在本机 accounts.json（权限 0600），面板不回显。添加时会实时校验令牌有效性。</div>
+    <table id="accounts-table">
+      <thead><tr><th>别名</th><th>版本</th><th>账号名 / uid</th><th>令牌</th><th>备注</th><th style="text-align:right">操作</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <h2>额度</h2>
+  <div class="card" id="quota-box">
+    <div class="s muted">加载中…</div>
+  </div>
+
+  <h2>签到 / 权益活动</h2>
+  <div class="card" id="checkin-box">
+    <div class="s" id="checkin-status">加载中…</div>
+    <table id="campaign-table" style="margin-top:8px">
+      <thead><tr><th>活动</th><th>奖励</th><th>状态</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
+      <button class="btn" id="checkin-btn">立即检查签到</button>
+      <span class="s" id="checkin-history" style="flex:1"></span>
+    </div>
+  </div>
+
+  <h2>模型 — 点击行切换当前模型</h2>
+  <div class="s" style="margin:2px 0 6px"><span id="catalog-info" class="muted">目录加载中…</span> <button class="btn" id="models-refresh-btn">刷新模型列表</button></div>
+  <div class="card" style="padding:4px 8px">
+    <table id="models-table">
+      <thead>
+        <tr><th>模型</th><th>key</th><th>倍率</th><th>上下文</th><th>类型</th><th>状态</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <h2>今日用量（<span id="usage-date"></span>）</h2>
+  <div class="card" style="padding:4px 8px">
+    <table id="usage-table">
+      <thead>
+        <tr><th>模型</th><th>请求数</th><th>失败</th><th>输入 token</th><th>输出 token</th><th>credits</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <h2>切换记录</h2>
+  <div class="card" style="padding:4px 8px">
+    <table id="switch-table">
+      <thead><tr><th>时间</th><th>从</th><th>到</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => (n ?? 0).toLocaleString('en-US');
+const t2s = (ts) => new Date(ts).toLocaleString('zh-CN', { hour12: false });
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// 服务端用 year-9999 时间戳表示"无固定重置周期"
+const fmtReset = (ts) => !ts ? '—' : ts > 4102444800000 ? '无固定重置' : t2s(ts);
+
+function quotaRow(label, p) {
+  const total = p.total || 0, used = p.used || 0;
+  return {
+    label, used, total,
+    remaining: p.remaining ?? Math.max(total - used, 0),
+    pct: Math.round((p.percentage ?? (total ? used / total : 0)) * 100),
+  };
+}
+// 与官网"我的用量"同口径：套餐内 Credits + 资源包(addOnQuota) + 活动包(dedicatedResourcePackages)
+function quotaRows(q) {
+  if (!q) return [];
+  const rows = [];
+  if (q.userQuota) rows.push(quotaRow('套餐内 Credits', q.userQuota));
+  if (q.addOnQuota && (q.addOnQuota.total > 0 || q.addOnQuota.used > 0)) rows.push(quotaRow('资源包', q.addOnQuota));
+  for (const p of (q.dedicatedResourcePackages || [])) {
+    if (p.status === 'QUOTA_DETAIL_STATUS_ACTIVE') rows.push(quotaRow('活动包', p));
+  }
+  return rows;
+}
+
+function toast(msg, isErr) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.style.background = isErr ? 'var(--bad)' : 'var(--accent)';
+  el.style.opacity = 1;
+  setTimeout(() => { el.style.opacity = 0; }, 2200);
+}
+
+// ---- 账号池 ----
+async function addAccount() {
+  const btn = $('acc-add');
+  const alias = $('acc-alias').value.trim();
+  const pat = $('acc-pat').value.trim();
+  const edition = $('acc-edition').value;
+  const note = $('acc-note').value.trim();
+  if (!alias) { toast('请填写别名', true); $('acc-alias').focus(); return; }
+  if (!pat.startsWith('pt-')) { toast('令牌应以 pt- 开头', true); $('acc-pat').focus(); return; }
+  btn.disabled = true; btn.textContent = '校验中…';
+  try {
+    const r = await fetch('/ui/accounts', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alias, pat, edition, note }),
+    });
+    const j = await r.json();
+    if (r.ok) {
+      toast('已添加账号：' + alias);
+      $('acc-alias').value = ''; $('acc-pat').value = ''; $('acc-note').value = '';
+      await Promise.all([load(), loadCampaigns()]);
+    } else {
+      toast(j.error?.message || '添加失败', true);
+    }
+  } catch (e) { toast('添加失败: ' + e.message, true); }
+  finally { btn.disabled = false; btn.textContent = '添加账号'; }
+}
+
+async function switchAccount(id, alias) {
+  try {
+    const r = await fetch('/ui/account', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    const j = await r.json();
+    if (r.ok) { toast(j.changed ? '已切换 → ' + (alias || id) : '已是当前账号'); await Promise.all([load(), loadCampaigns()]); }
+    else toast(j.error?.message || '切换失败', true);
+  } catch (e) { toast('切换失败: ' + e.message, true); }
+}
+
+async function editAccount(id, curAlias, curNote) {
+  const alias = prompt('修改别名', curAlias);
+  if (alias === null) return;
+  const note = prompt('修改备注', curNote);
+  if (note === null) return;
+  try {
+    const r = await fetch('/ui/accounts/' + encodeURIComponent(id), {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alias, note }),
+    });
+    const j = await r.json();
+    if (r.ok) { toast('已保存'); await load(); }
+    else toast(j.error?.message || '保存失败', true);
+  } catch (e) { toast('保存失败: ' + e.message, true); }
+}
+
+async function deleteAccount(id, alias) {
+  if (!confirm(`确认删除账号「${alias}」？此操作不可撤销（令牌将从本机移除）。`)) return;
+  try {
+    const r = await fetch('/ui/accounts/' + encodeURIComponent(id), { method: 'DELETE' });
+    const j = await r.json();
+    if (r.ok) { toast('已删除：' + alias); await Promise.all([load(), loadCampaigns()]); }
+    else toast(j.error?.message || '删除失败', true);
+  } catch (e) { toast('删除失败: ' + e.message, true); }
+}
+
+function renderAccounts(s) {
+  const accounts = s.accounts || [];
+  $('accounts-switch').innerHTML = accounts.length
+    ? accounts.map((a) => {
+        const cls = a.active ? 'accbtn active' : 'accbtn';
+        const tip = ` title="${esc(a.edition)}${a.uid ? ' · uid ' + esc(a.uid.slice(0, 8)) : ''}${a.note ? ' · ' + esc(a.note) : ''}"`;
+        return `<button class="${cls}" data-acc-switch="${esc(a.id)}" data-alias="${esc(a.alias)}" ${a.active ? 'disabled' : ''}${tip}>${esc(a.alias)}${a.active ? ' ●' : ''}</button>`;
+      }).join(' ')
+    : '<span class="muted">暂无账号</span>';
+
+  $('accounts-table').querySelector('tbody').innerHTML = accounts.length
+    ? accounts.map((a) => {
+        const tok = a.tokenValid
+          ? '<span class="tag free">有效</span>'
+          : '<span class="tag off">待刷新</span>';
+        const edTag = a.edition === 'global'
+          ? '<span class="tag paid">global</span>'
+          : '<span class="tag now">cn</span>';
+        const who = `${esc(a.name || '—')}${a.uid ? `<div class="mono muted">${esc(a.uid.slice(0, 8))}…</div>` : ''}`;
+        const actions = `
+          <button class="btn sm ghost" data-acc-edit="${esc(a.id)}" data-alias="${esc(a.alias)}" data-note="${esc(a.note)}">编辑</button>
+          <button class="btn sm danger" data-acc-del="${esc(a.id)}" data-alias="${esc(a.alias)}">删除</button>
+          ${a.active ? '<span class="tag now" style="margin-left:6px">当前</span>' : `<button class="btn sm" data-acc-switch="${esc(a.id)}" data-alias="${esc(a.alias)}" style="margin-left:6px">切换</button>`}`;
+        return `<tr class="${a.active ? 'active-row' : ''}">
+          <td><b>${esc(a.alias)}</b></td>
+          <td>${edTag}</td>
+          <td>${who}</td>
+          <td>${tok}</td>
+          <td class="muted">${esc(a.note) || '—'}</td>
+          <td style="text-align:right;white-space:nowrap">${actions}</td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="6" class="muted">还没有账号。用上方表单录入个人访问令牌（pt-…）即可添加，首个账号会自动激活。</td></tr>';
+}
+
+// ---- 签到 / 活动 ----
+async function loadCampaigns() {
+  const statusEl = $('checkin-status');
+  try {
+    const [r1, r2] = await Promise.all([fetch('/ui/campaigns'), fetch('/ui/activities')]);
+    const j = await r1.json();
+    const act = await r2.json();
+    const last = j.checkin?.lastAt ? t2s(j.checkin.lastAt) : '从未';
+    const statusLine = j.checkin?.lastError
+      ? `<span class="err">上次检查失败: ${esc(j.checkin.lastError)}</span>`
+      : `上次检查: ${last}`;
+    const perAcc = (j.checkinAll || []).map((a) => {
+      const dot = a.lastError ? '<span class="err">✗</span>'
+        : (a.claimedToday ? '<span class="tag free">已领</span>' : (a.lastAt ? '<span class="tag now">已查</span>' : '<span class="muted">未查</span>'));
+      const tip = a.lastError ? esc(a.lastError)
+        : (a.lastClaim ? `最近领取: ${esc(a.lastClaim.title)}${a.lastClaim.amount != null ? ' +' + a.lastClaim.amount : ''} @ ${t2s(a.lastClaim.ts)}` : (a.lastAt ? '上次检查: ' + t2s(a.lastAt) : '尚未检查'));
+      return `<span title="${tip}">${esc(a.alias)}${a.edition === 'global' ? '(国际)' : ''} ${dot}</span>`;
+    }).join(' · ');
+    statusEl.innerHTML = `全账号自动签到（每 15 分钟，覆盖所有账号） · ${statusLine}${perAcc ? '<br>' + perAcc : ''}`;
+    const btn = $('checkin-btn');
+    if (btn) { btn.disabled = false; btn.title = ''; }
+    // 合并 sash campaigns 和 activities
+    const sashRows = (j.campaigns || []).filter((c) => {
+      if (c.actionType === 'VIEW_DETAILS' && c.claimStatus === 'CLAIMED') return false;
+      return true;
+    });
+    const actRows = (act.activities || []).filter(a => {
+      // 过滤掉已过期的活动
+      if (a.tagStyle === 'EXPIRED') return false;
+      if (a.activityEndAt && a.activityEndAt <= Date.now()) return false;
+      return true;
+    });
+    const totalRows = sashRows.length + actRows.length;
+    const emptyMsg = totalRows
+      ? null
+      : '当前无进行中的活动（已领取或活动期外）';
+    // 渲染 sash campaigns
+    const sashHtml = sashRows.map((c) => {
+      const claimable = c.actionType === 'CLAIM_BENEFIT' && c.claimStatus === 'CLAIMABLE';
+      let st;
+      if (claimable) st = '<span class="tag free">可领取</span>';
+      else if (c.claimStatus === 'CLAIMED') {
+        st = c.actionType === 'VIEW_DETAILS'
+          ? '<span class="tag now">已查看</span>'
+          : '<span class="tag now">已领取</span>';
+      } else st = `<span class="muted">${esc(c.claimStatus) || '—'}</span>`;
+      const reward = c.benefitAmount != null
+        ? `${c.benefitKind === 'CREDITS' ? '积分' : esc(c.benefitKind) || '奖励'} +${fmt(c.benefitAmount)}`
+        : esc(c.benefitKind) || '—';
+      const action = claimable
+        ? `<button class="btn" data-claim="${esc(c.campaignId)}" data-key="${esc(c.campaignKey || '')}" data-amount="${c.benefitAmount ?? ''}" data-kind="${esc(c.benefitKind || '')}">领取</button>`
+        : '';
+      return `<tr><td>${esc(c.title || c.campaignKey || c.campaignId.slice(0, 8))}</td><td>${reward}</td><td>${st}</td><td>${action}</td></tr>`;
+    }).join('');
+    // 渲染 activities
+    const actHtml = actRows.map((a) => {
+      const claimable = a.canClaim && !a.claimed;
+      let st;
+      if (claimable) st = '<span class="tag free">可领取</span>';
+      else if (a.claimed) st = '<span class="tag now">已领取</span>';
+      else if (!a.canClaim) st = '<span class="tag off">不可领取</span>';
+      else st = '<span class="muted">—</span>';
+      const title = a.claimText?.zh || a.claimText?.en || a.modelName || a.activityId?.slice(0, 12) || '活动';
+      const reward = a.modelName ? esc(a.modelName) : '—';
+      const action = claimable
+        ? `<button class="btn" data-activity-claim="${esc(a.activityId)}" data-model="${esc(a.modelName || '')}">领取</button>`
+        : (!a.canClaim && a.ifShowClaimDisable && a.hoverTip
+            ? `<span class="muted" title="${esc(a.hoverTip?.zh || a.hoverTip?.en || '')}">需付费解锁</span>`
+            : '');
+      return `<tr><td>${esc(title)}</td><td>${reward}</td><td>${st}</td><td>${action}</td></tr>`;
+    }).join('');
+    $('campaign-table').querySelector('tbody').innerHTML = (sashHtml + actHtml) || `<tr><td colspan="4" class="muted">${emptyMsg}</td></tr>`;
+    const hist = (j.historyAll || j.checkin?.history || []).slice(0, 5);
+    $('checkin-history').textContent = hist.length
+      ? '最近领取: ' + hist.map((h) => `${h.alias ? '[' + h.alias + '] ' : ''}${(h.campaignKey || h.activityId?.slice(0, 8) || h.campaignId?.slice(0, 8) || '?')}${h.amount != null ? '+' + h.amount : ''}@${new Date(h.ts).toLocaleDateString('zh-CN')}`).join(' · ')
+      : '暂无领取记录';
+  } catch (e) {
+    statusEl.innerHTML = `<span class="err">活动加载失败: ${esc(e.message)}</span>`;
+  }
+}
+
+async function checkinNow() {
+  const btn = $('checkin-btn');
+  btn.disabled = true;
+  btn.textContent = '检查中…';
+  try {
+    const r = await fetch('/ui/checkin', { method: 'POST' });
+    const j = await r.json();
+    if (r.ok) {
+      const claimed = j.claimed ?? (j.results || []).length;
+      toast(claimed ? `已领取 ${claimed} 项` : (j.note || '无待领取活动'));
+    } else {
+      toast(j.error || '签到检查失败', true);
+    }
+    await Promise.all([loadCampaigns(), loadNow()]);
+  } catch (e) {
+    toast('签到检查失败: ' + e.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '立即检查签到';
+  }
+}
+
+async function claimOne(btn) {
+  btn.disabled = true;
+  btn.textContent = '领取中…';
+  try {
+    const r = await fetch('/ui/claim', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        campaignId: btn.dataset.claim,
+        campaignKey: btn.dataset.key,
+        amount: btn.dataset.amount === '' ? null : Number(btn.dataset.amount),
+        kind: btn.dataset.kind || null,
+      }),
+    });
+    const j = await r.json();
+    if (r.ok) toast('领取成功' + (btn.dataset.amount ? ` +${btn.dataset.amount}` : ''));
+    else toast(`领取失败 HTTP ${j.status || r.status}: ${JSON.stringify(j.body || {}).slice(0, 120)}`, true);
+    await Promise.all([loadCampaigns(), loadNow()]);
+  } catch (e) {
+    toast('领取失败: ' + e.message, true);
+    btn.disabled = false;
+    btn.textContent = '领取';
+  }
+}
+
+async function claimActivityOne(btn) {
+  btn.disabled = true;
+  btn.textContent = '领取中…';
+  try {
+    const r = await fetch('/ui/activities/claim', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        activityId: btn.dataset.activityClaim,
+        modelName: btn.dataset.model || null,
+      }),
+    });
+    const j = await r.json();
+    if (r.ok && j.ok) toast('活动领取成功');
+    else toast(`领取失败: ${j.body?.msg || j.body?.message || 'HTTP ' + (j.status || r.status)}`, true);
+    await Promise.all([loadCampaigns(), loadNow()]);
+  } catch (e) {
+    toast('领取失败: ' + e.message, true);
+    btn.disabled = false;
+    btn.textContent = '领取';
+  }
+}
+
+async function setModel(key) {
+  try {
+    const r = await fetch('/ui/active-model', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key }),
+    });
+    const j = await r.json();
+    if (r.ok) { toast('已切换 → ' + key); await load(); }
+    else toast(j.error?.message || '切换失败', true);
+  } catch (e) { toast('切换失败: ' + e.message, true); }
+}
+
+function render(s) {
+  renderAccounts(s);
+  $('active-key').textContent = s.activeKey;
+  $('updated').textContent = '更新于 ' + t2s(s.now);
+
+  const q = s.quota;
+  const qRows = quotaRows(q);
+  const sumUsed = qRows.reduce((a, r) => a + r.used, 0);
+  const sumTotal = qRows.reduce((a, r) => a + r.total, 0);
+  const overallPct = sumTotal ? Math.round(sumUsed / sumTotal * 100) : null;
+  const reset = q ? fmtReset(q.expiresAt) : '—';
+  const accCount = (s.accounts || []).length;
+  $('stats').innerHTML = [
+    ['当前账号', esc(s.account?.alias || s.account?.name || '—'), `${esc(s.editionLabel || s.edition)} · 池内 ${accCount} 个账号`],
+    ['当前模型', esc(s.activeKey), '对外名 qoder-model · 点击下方模型行切换'],
+    ['套餐', esc(s.plan?.plan_tier_name || '—'), s.plan?.is_paid_plan ? '付费' : '—'],
+    ['额度已用', overallPct === null ? '—' : overallPct + '%', qRows.map((r) => `${r.label} ${fmt(r.used)}/${fmt(r.total)}`).join(' · ') + ' · 重置 ' + reset],
+  ].map(([k, v, sub]) =>
+    `<div class="card"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`
+  ).join('');
+
+  if (q) {
+    $('quota-box').innerHTML = qRows.map((r) => {
+      const color = q.isQuotaExceeded ? 'var(--bad)' : r.pct > 80 ? 'var(--warn)' : 'var(--accent)';
+      return `<div style="margin-bottom:14px">
+        <div class="k">${esc(r.label)}</div>
+        <div class="bar"><div style="width:${r.pct}%;background:${color}"></div></div>
+        <div class="s" style="display:flex;justify-content:space-between;gap:12px">
+          <span>${fmt(r.used)} / ${fmt(r.total)} (已使用 ${r.pct}%)</span>
+          <span>剩余 ${fmt(r.remaining)}</span>
+        </div>
+      </div>`;
+    }).join('') + `<div class="s muted">超额: ${q.isQuotaExceeded ? '是' : '否'} · 周期重置 ${reset} · 类型 ${esc(q.usageType)}</div>`;
+  } else {
+    $('quota-box').innerHTML = '<div class="s err">额度接口不可达（无账号 / 离线？）</div>';
+  }
+
+  $('models-table').querySelector('tbody').innerHTML = (s.models || []).map((m) => {
+    const active = m.key === s.activeKey;
+    const price = m.price_factor === 0
+      ? `<span class="tag free">0 免费</span> <span class="muted" style="text-decoration:line-through">${m.original_price_factor}</span>`
+      : `<span class="tag paid">${m.price_factor}x</span>`;
+    return `<tr class="clickable ${active ? 'active-row' : ''}" data-key="${esc(m.key)}">
+      <td>${esc(m.display_name)} ${active ? '<span class="tag now">当前</span>' : ''}${m.surface === 'app' ? ' <span class="tag free" title="仅桌面端目录(app段)提供, 推理受每日免费次数限制">app</span>' : ''}</td>
+      <td class="mono">${esc(m.key)}</td>
+      <td>${price}</td>
+      <td>${Math.round((m.max_input_tokens || 0) / 1000)}K</td>
+      <td>${m.is_reasoning ? '推理' : '—'}${m.is_free ? ' · free' : ''}</td>
+      <td>${m.enable ? '启用' : '停用'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="6" class="muted">无可用模型（请先添加并激活账号）</td></tr>';
+  const ci = s.catalogInfo;
+  if (ci) $('catalog-info').textContent = `目录: ${ci.count} 个模型 · 来源 ${ci.source === 'network' ? '网络直拉' : '本地缓存'}${ci.netAt ? ' · 网拉于 ' + t2s(ci.netAt) : ''}${ci.fileAt ? ' · 文件更新于 ' + t2s(ci.fileAt) : ''}`;
+
+  $('usage-date').textContent = s.usageDate || '—';
+  const rows = Object.entries(s.usage || {}).sort((a, b) => b[1].requests - a[1].requests);
+  $('usage-table').querySelector('tbody').innerHTML = rows.length
+    ? rows.map(([key, u]) => `<tr class="${key === s.activeKey ? 'active-row' : ''}">
+        <td class="mono">${esc(key)}</td><td>${fmt(u.requests)}</td><td>${fmt(u.errors)}</td>
+        <td>${fmt(u.prompt_tokens)}</td><td>${fmt(u.completion_tokens)}</td><td>${(u.credits ?? 0).toFixed(3)}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="6" class="muted">今日暂无请求</td></tr>';
+  const foot = $('usage-foot');
+  if (foot) foot.remove();
+  $('usage-table').insertAdjacentHTML('afterend',
+    '<div id="usage-foot" class="muted mono" style="padding:8px 12px;font-size:11px">请求数/token = 本机实时记账 · credits 额度 = 服务端批量结算，有分钟级滞后</div>');
+
+  $('switch-table').querySelector('tbody').innerHTML = (s.switches || []).length
+    ? s.switches.map((w) => `<tr><td>${t2s(w.ts)}</td><td class="mono">${esc(w.from)}</td><td class="mono">${esc(w.to)}</td></tr>`).join('')
+    : '<tr><td colspan="3" class="muted">暂无切换</td></tr>';
+}
+
+async function load() {
+  try {
+    const r = await fetch('/ui/state');
+    render(await r.json());
+  } catch (e) {
+    $('updated').textContent = '刷新失败: ' + e.message;
+  }
+}
+
+async function refreshModels() {
+  const btn = $('models-refresh-btn');
+  btn.disabled = true;
+  try {
+    const r = await fetch('/ui/models/refresh', { method: 'POST' });
+    const j = await r.json();
+    if (r.ok) toast(`模型目录已刷新（${j.count ?? '?'} 个模型）`);
+    else toast(j.error || `刷新失败 HTTP ${j.status || r.status}`, true);
+    await loadNow();
+  } catch (e) {
+    toast('刷新失败: ' + e.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const claimBtn = e.target.closest('button[data-claim]');
+  if (claimBtn) { claimOne(claimBtn); return; }
+  const actClaimBtn = e.target.closest('button[data-activity-claim]');
+  if (actClaimBtn) { claimActivityOne(actClaimBtn); return; }
+  if (e.target.closest('#checkin-btn')) { checkinNow(); return; }
+  if (e.target.closest('#models-refresh-btn')) { refreshModels(); return; }
+  if (e.target.closest('#acc-add')) { addAccount(); return; }
+  const swBtn = e.target.closest('button[data-acc-switch]');
+  if (swBtn && !swBtn.disabled) { switchAccount(swBtn.dataset.accSwitch, swBtn.dataset.alias); return; }
+  const edBtn = e.target.closest('button[data-acc-edit]');
+  if (edBtn) { editAccount(edBtn.dataset.accEdit, edBtn.dataset.alias, edBtn.dataset.note); return; }
+  const delBtn = e.target.closest('button[data-acc-del]');
+  if (delBtn) { deleteAccount(delBtn.dataset.accDel, delBtn.dataset.alias); return; }
+  const tr = e.target.closest('tr.clickable');
+  if (tr) {
+    const key = tr.dataset.key;
+    if (key && key !== $('active-key').textContent) setModel(key);
+  }
+});
+
+// 回车提交添加表单
+['acc-alias', 'acc-pat', 'acc-note'].forEach((id) => {
+  $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') addAccount(); });
+});
+
+let lastLoad = 0;
+async function loadNow() {
+  lastLoad = Date.now();
+  await load();
+}
+// 不自动轮询：只有切回面板时拉一次新数据
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && Date.now() - lastLoad > 1000) loadNow();
+});
+window.addEventListener('focus', () => {
+  if (Date.now() - lastLoad > 1000) { loadNow(); loadCampaigns(); }
+});
+loadNow();
+loadCampaigns();
+</script>
+</body>
+</html>

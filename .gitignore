@@ -1,0 +1,22 @@
+# ---- 敏感文件：绝不上传 ----
+accounts.json          # PAT 明文账号池（0600）
+state.json             # 运行状态（账号 UID、切换历史）
+machine_id             # 本机设备 UUID
+bridge.log
+logs/
+
+# ---- 备份 ----
+*.bak
+*.bak-*
+
+# ---- 从官方二进制提取的运行时文件（含隐私/版权，不随仓库分发，用户自提取）----
+qoder_auth.wasm
+qoder_glue.mjs
+
+# ---- 运行时生成 ----
+.qoder-umid/
+*.tmp
+run.log
+
+# ---- 工具脚本缓存 ----
+tools/__pycache__/

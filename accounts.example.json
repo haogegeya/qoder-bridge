@@ -1,0 +1,20 @@
+// 账号池模板：复制为 accounts.json 并填入真实 PAT 使用
+// PAT 从 Qoder 网页控制台签发，长期有效（pt-...）。
+// ⚠️ accounts.json 权限必须为 0600，仅本机，勿提交/外传。
+// 首次启动若池为空，会自动从 ~/.qoder-cn/.auth/user 解密提取 PAT 导入一个账号。
+[
+  {
+    "id": "在此填写唯一ID(如uuid)",
+    "alias": "账号别名",
+    "pat": "pt-在此填写个人访问令牌",
+    "edition": "cn",
+    "note": "备注(可选)"
+  },
+  {
+    "id": "第二个账号ID",
+    "alias": "别名2",
+    "pat": "pt-...",
+    "edition": "global",
+    "note": "国际版账号"
+  }
+]
