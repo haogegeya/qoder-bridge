@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  syntax-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Check main service syntax
+        run: node --check qoder_bridge.mjs
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Check extraction scripts syntax
+        run: |
+          python3 -m py_compile tools/decode_b64_wasm.py
+          python3 -m py_compile tools/extract_glue.py
+          python3 -m py_compile tools/mitm_capture.py
+
+      - name: Verify no sensitive files in tree
+        run: |
+          for f in accounts.json state.json machine_id qoder_auth.wasm qoder_glue.mjs; do
+            if [ -f "$f" ]; then
+              echo "❌ 敏感文件被提交: $f"; exit 1
+            fi
+          done
+          echo "✅ 无敏感文件"

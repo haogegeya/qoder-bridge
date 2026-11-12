@@ -1,0 +1,27 @@
+# qoder-bridge systemd 服务示例
+# 复制到 ~/.config/systemd/user/qoder-bridge.service，按本机实际路径修改后：
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now qoder-bridge
+
+[Unit]
+Description=Qoder Bridge (OpenAI-compatible gateway, WASM-sign)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# ↓ 改成你 qoder-bridge 目录的绝对路径
+ExecStart=/usr/bin/node /path/to/qoder-bridge/qoder_bridge.mjs
+WorkingDirectory=/path/to/qoder-bridge
+Restart=always
+RestartSec=3
+Environment=NODE_ENV=production
+# 端口（默认 8100）
+Environment=QODER_BRIDGE_PORT=8100
+# WASM 直连签名模式（不走 CLI 子进程）
+Environment=QODER_USE_WASM=1
+# 排队最长等待（免费模型高峰期可能要等几分钟）
+Environment=QODER_QUEUE_MAX_WAIT_MS=600000
+
+[Install]
+WantedBy=default.target

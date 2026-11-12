@@ -1,5 +1,9 @@
 # qoder-bridge — Qoder 直连网关（OpenAI 兼容 API）
 
+[![License](https://img.shields.io/github/license/haogegeya/qoder-bridge)](LICENSE)
+[![CI](https://github.com/haogegeya/qoder-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/haogegeya/qoder-bridge/actions/workflows/ci.yml)
+[![Node](https://img.shields.io/badge/Node.js-%E2%89%A5%2020-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+
 把 Qoder（国内版 / 国际版）账号变成**本机 OpenAI 兼容 API** 的自托管网关。
 
 逆向官方 CLI 得到的直连方案：不需要启动任何 CLI 进程，直接调用其内嵌签名 WASM
@@ -50,6 +54,15 @@ node qoder_bridge.mjs
 ```
 
 浏览器打开 `http://127.0.0.1:8100/` 进入管理面板（账号录入/切换、额度、签到、模型、用量）。
+
+后台常驻（Linux，systemd user service）：参考 [`qoder-bridge.service.example`](qoder-bridge.service.example)，
+改成本机路径后：
+
+```bash
+systemctl --user enable --now qoder-bridge
+systemctl --user status qoder-bridge
+journalctl --user -u qoder-bridge -f
+```
 
 ### 4. 调用
 
@@ -113,7 +126,9 @@ python3 tools/extract_glue.py      # 重新定位 glue chunk
 | `qoder_glue.mjs` | wasm-bindgen 胶水（自提取）|
 | `ui.html` | 管理面板 |
 | `accounts.example.json` | 账号池模板 |
+| `qoder-bridge.service.example` | systemd user 服务示例 |
 | `tools/` | 提取脚本 + 探针 |
+| `.github/workflows/ci.yml` | CI：语法检查 + 敏感文件守卫 |
 | `EXTRACT.md` | 运行时文件提取说明 |
 
 ## License
